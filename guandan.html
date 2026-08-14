@@ -173,13 +173,13 @@
   .red .corner{color:var(--red);} .black .corner{color:var(--black);}
 
   .face{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;}
-  .p-icon{width:48px; height:48px; display:flex; align-items:center; justify-content:center;}
-  .p-icon svg{width:46px; height:46px;}
-  .card.red .p-icon{color:var(--red);} .card.black .p-icon{color:var(--black);}
-  .p-name{font-size:11px; color:#6c6350; font-weight:700; margin-top:3px; line-height:1.1; max-width:78px; text-align:center;}
-  .p-sym{font-size:9px; color:#a99f86; margin-top:2px; max-width:78px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .card.wild .p-icon{color:#b8860b;}
-  .card.wild .p-name{color:#b8860b;}
+  .phys-icon{width:50px; height:50px; display:flex; align-items:center; justify-content:center;}
+  .phys-icon svg{width:48px; height:48px;}
+  .card.red .phys-icon{color:var(--red);} .card.black .phys-icon{color:var(--black);}
+  .phys-name{font-size:12px; color:#6c6350; font-weight:700; margin-top:3px; line-height:1.1; max-width:82px; text-align:center;}
+  .phys-sym{font-size:10px; color:#a99f86; margin-top:2px; max-width:82px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .card.wild .phys-icon{color:#b8860b;}
+  .card.wild .phys-name{color:#b8860b;}
   .wild-badge{position:absolute; top:3px; right:5px; font-size:9px; color:#8a6d00; background:#ffe9a8;
     border-radius:4px; padding:1px 4px; font-weight:700;}
   .joker-face{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
@@ -235,6 +235,44 @@
     border:1px solid var(--gold-dim); animation:toast-in .2s ease; box-shadow:0 6px 20px #0008;}
 
   .hidden{display:none !important;}
+
+  /* ===== 全局字号放大（桌面端） ===== */
+  :root{--card-w:96px; --card-h:130px;}
+  #topbar{flex-basis:60px;}
+  #topbar .logo{font-size:24px;}
+  #topbar .sub{font-size:14px;}
+  .level-chip{font-size:15px; padding:6px 14px;} .level-chip b{font-size:18px;}
+  .btn{font-size:15px; padding:8px 16px;}
+  .avatar{width:46px; height:46px; font-size:25px;}
+  .p-name{font-size:15px;}
+  .p-role{font-size:13px;}
+  .p-count{font-size:14px;} .p-count b{font-size:17px;}
+  .p-status{font-size:13px; min-height:24px;}
+  .zone-tag{font-size:12px;}
+  #side{flex-basis:300px;}
+  .panel h3{font-size:15px;}
+  .ct{font-size:14px;} .ct .cn{font-size:12px;}
+  #history{font-size:14px;}
+  .stat{font-size:14px;} .stat b{font-size:24px;} .stat span{font-size:13px;}
+  #hint{font-size:15px;}
+  .card .corner .rank{font-size:24px;}
+  .card .corner .suit{font-size:16px;}
+  .phys-icon{width:56px; height:56px;} .phys-icon svg{width:54px; height:54px;}
+  .phys-name{font-size:13px; max-width:88px;}
+  .phys-sym{font-size:11px; max-width:88px;}
+  .joker-name{font-size:13px;}
+  .joker-eq{font-size:11px;}
+  .wild-badge{font-size:11px;}
+  .modal h2{font-size:23px;}
+  .modal label{font-size:15px; min-width:104px;}
+  .difficulty-btn .d-name{font-size:19px;}
+  .difficulty-btn .d-desc{font-size:13px;}
+  .result-row{font-size:15px;}
+  .result-up{font-size:16px;}
+  .replay-step{font-size:15px;}
+  .toast{font-size:15px; padding:10px 20px;}
+  .mini-card .ms{font-size:12px;} .mini-card .mc{font-size:19px;}
+
   @media (max-width:900px){
     :root{--card-w:62px; --card-h:88px;}
     #side{flex-basis:0; display:none;}
@@ -885,9 +923,9 @@ function makeCardEl(c, faceUp=true){
       <div class="corner br"><span class="rank">${rankText(c.r)}</span><span class="suit">${suitChar(c.s)}</span></div>
       ${wild?'<span class="wild-badge">逢人配</span>':''}
       <div class="face">
-        <div class="p-icon">${P_ICON[p.icon]}</div>
-        <div class="p-name">${p.name}</div>
-        <div class="p-sym">${p.sym}</div>
+        <div class="phys-icon">${P_ICON[p.icon]}</div>
+        <div class="phys-name">${p.name}</div>
+        <div class="phys-sym">${p.sym}</div>
       </div>`;
   }
   div.dataset.uid=c.id;
@@ -1016,18 +1054,77 @@ function humanPass(){
   applyPass(state.me);
 }
 
+/* ---------- 提示出牌（独立于 AI 策略，尽量枚举全部可出组合） ---------- */
+function hintUsesWild(c){ return c.cards.some(isWild); }
+
+function hintBreaksBomb(c, hand){
+  // 出某点数的“部分牌”会导致该点数剩余不足 4 张（拆散炸弹）
+  const handCount = new Map();
+  for(const x of hand) if(x.r<=14) handCount.set(x.r, (handCount.get(x.r)||0)+1);
+  const comboCount = new Map();
+  for(const x of c.cards) if(x.r<=14) comboCount.set(x.r, (comboCount.get(x.r)||0)+1);
+  for(const [r, cnt] of comboCount){
+    const total = handCount.get(r)||0;
+    if(total>=4 && cnt>0 && cnt<total && (total-cnt)<4) return true;
+  }
+  return false;
+}
+
+function hintForLead(hand){
+  const combos = enumerateCombos(hand);
+  const nonBomb = combos.filter(c=>!isBombType(c.type));
+  // 优先：不用逢人配、不拆炸弹
+  const safe = nonBomb.filter(c=>!hintUsesWild(c) && !hintBreaksBomb(c, hand));
+  const pool = safe.length ? safe : nonBomb;
+  // 领出优先脱手：顺子/连对/钢板/三带二 > 小单张
+  const multis = pool.filter(c=>['STRAIGHT','PAIR_STRAIGHT','TRIPLE_STRAIGHT','TRIPLE_PAIR'].includes(c.type));
+  if(multis.length){
+    multis.sort((a,b)=> b.cards.length-a.cards.length || powerOf(a)-powerOf(b));
+    return multis[0];
+  }
+  const singles = pool.filter(c=>c.type==='SINGLE').sort((a,b)=>powerOf(a)-powerOf(b));
+  if(singles.length) return singles[0];
+  return smallestByPower(pool.length ? pool : combos);
+}
+
+function hintForFollow(hand, last){
+  const combos = enumerateCombos(hand);
+  const beaters = combos.filter(c=>canBeat(c,last));
+  if(beaters.length===0) return null;
+  const nonBomb = beaters.filter(c=>!isBombType(c.type));
+  if(nonBomb.length){
+    // 最小代价管住：优先不用逢人配、不拆炸弹的普通牌
+    const safe = nonBomb.filter(c=>!hintUsesWild(c) && !hintBreaksBomb(c, hand));
+    const pool = safe.length ? safe : nonBomb;
+    return smallestByPower(pool);
+  }
+  return smallestByPower(beaters); // 只有炸弹/同花顺/天王炸能管
+}
+
 function humanHint(){
   if(state.turn!==state.me || state.phase!=='playing') return;
-  const move=chooseAiMove(state.hands[state.me], state.lastPlay, state.lastPlayer, state.me, 2, state);
-  if(move.action==='play' && move.combo){
-    // 只把提示的牌选中并高亮，不直接打出；由用户点「出牌」确认
-    state.selected = new Set(move.combo.cards.map(c=>c.id));
-    state.hintIds = new Set(move.combo.cards.map(c=>c.id));
-    renderHand();
-    updateHint(`💡 已选中提示的 ${TYPE_NAME[move.combo.type]}，确认后点「出牌」`);
+  const hand = state.hands[state.me];
+  const last = comboOf(state.lastPlay);
+  let combo=null, msg='';
+  if(last){
+    const beaters = enumerateCombos(hand).filter(c=>canBeat(c,last));
+    if(beaters.length===0){ updateHint('💡 没有合适的牌可管，建议点「过」'); return; }
+    combo = hintForFollow(hand, last);
+    if(beaters.length===1){
+      msg = '⚠️ 当前只有这一种出牌机会，评估风险，建议可以选择过牌';
+    } else if(isBombType(combo.type)){
+      msg = `💣 只有${TYPE_NAME[combo.type]}能管住，请谨慎使用`;
+    } else {
+      msg = `💡 已选中提示的 ${TYPE_NAME[combo.type]}，确认后点「出牌」`;
+    }
   } else {
-    updateHint('💡 没有合适的牌可管，建议点「过」');
+    combo = hintForLead(hand);
+    msg = `💡 已选中提示的 ${TYPE_NAME[combo.type]}，确认后点「出牌」`;
   }
+  state.selected = new Set(combo.cards.map(c=>c.id));
+  state.hintIds = new Set(combo.cards.map(c=>c.id));
+  renderHand();
+  updateHint(msg);
 }
 
 /* ---------- 游戏流程 ---------- */
