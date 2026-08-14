@@ -260,7 +260,7 @@
   .phys-icon{width:56px; height:56px;} .phys-icon svg{width:54px; height:54px;}
   .phys-name{font-size:13px; max-width:88px;}
   .phys-sym{font-size:11px; max-width:88px;}
-  .joker-name{font-size:13px;}
+  .joker-name{font-size:19px; letter-spacing:2px;}
   .joker-eq{font-size:11px;}
   .wild-badge{font-size:11px;}
   .modal h2{font-size:23px;}
@@ -272,6 +272,7 @@
   .replay-step{font-size:15px;}
   .toast{font-size:15px; padding:10px 20px;}
   .mini-card .ms{font-size:12px;} .mini-card .mc{font-size:19px;}
+  .mini-card.joker-mini .mc{font-size:13px; letter-spacing:-0.5px;}
 
   @media (max-width:900px){
     :root{--card-w:62px; --card-h:88px;}
@@ -877,7 +878,7 @@ function isRedCard(c){ return c.s===4 ? (c.r===16) : SUIT_IS_RED[c.s]; }
 function miniCardHTML(c){
   const red = isRedCard(c);
   const cls = red?'red':'black';
-  if(c.s===4){ return `<div class="mini-card ${cls}" style="--card-bg:${c.r===16?'#f3e3b0':'#e6ddc2'}"><span class="mc">${c.r===16?'E':'Y'}</span></div>`; }
+  if(c.s===4){ return `<div class="mini-card ${cls} joker-mini" style="--card-bg:${c.r===16?'#f3e3b0':'#e6ddc2'}"><span class="ms">★</span><span class="mc">${c.r===16?'大王':'小王'}</span></div>`; }
   return `<div class="mini-card ${cls}"><span class="ms">${suitChar(c.s)}</span><span class="mc">${rankText(c.r)}</span></div>`;
 }
 
@@ -914,7 +915,11 @@ function makeCardEl(c, faceUp=true){
     div.className += c.r===16?' joker-big':' joker-small';
     div.innerHTML=`<div class="corner tl"><span class="rank">${rankText(c.r)}</span></div>
       <div class="corner br"><span class="rank">${rankText(c.r)}</span></div>
-      <div class="joker-face">${jokerSVG(c.r===16)}<div class="joker-eq">${c.r===16?'E = mc²':'宇称不守恒'}</div></div>`;
+      <div class="joker-face">
+        <div class="joker-name">${c.r===16?'大王':'小王'}</div>
+        ${jokerSVG(c.r===16)}
+        <div class="joker-eq">${c.r===16?'E = mc²':'宇称不守恒'}</div>
+      </div>`;
   } else {
     const p=PHYSICS[c.r];
     const wild=isWild(c);
